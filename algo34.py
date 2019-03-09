@@ -1,10 +1,15 @@
+#!/usr/bin/python
 from PIL import Image, ImageDraw
 import random
 import math
 import numpy
+from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
+from os import curdir, sep
 
 RANDOM_POINTS = 100
 BOX_LEN = 5
+
+DEBUG = False
 
 def color_sum(adj_matrix, colors):
     result = 0
@@ -38,7 +43,9 @@ def generate_voronoi_diagram(width, height, cells):
         g = (color % (255 ** 2)) / 255
         b = (color % (255 ** 2)) % 255
         colors.append((r, g, b, i))
-    print(colors)
+
+    if DEBUG:
+        print(colors)
 
     # adj matrix for coloring
     adj_matrix = []
@@ -108,7 +115,9 @@ def generate_voronoi_diagram(width, height, cells):
                 country2_idx = countries.index(nc[j2])
                 adj_matrix[country1_idx][country2_idx] = 1
                 adj_matrix[country2_idx][country1_idx] = 1
-    print(adj_matrix)
+
+    if DEBUG:
+        print(adj_matrix)
     # calculate degree matrix
     for i in range(num_countries):
         degree = 0
@@ -135,7 +144,8 @@ def generate_voronoi_diagram(width, height, cells):
         eig_colors.append((big_vector[i], colors[i]))
     eig_colors.sort(key=lambda x: x[0])
     # greedy
-    print(eig_colors)
+    if DEBUG:
+        print(eig_colors)
     current_sum = color_sum(adj_matrix, eig_colors)
     for i in range(num_countries):
         for j in range(num_countries):
@@ -153,12 +163,15 @@ def generate_voronoi_diagram(width, height, cells):
                 eig_colors[j] = tmp
             else:
                 current_sum += new_sum
-    print(eig_colors)
+    if DEBUG:
+        print(eig_colors)
 
     # assign colors
     for i in range(num_countries):
         country_color[countries[i]] = eig_colors[i][1][:-1]
-    print(country_color)
+
+    if DEBUG:
+        print(country_color)
 
     # inner boxes
     for i in range(len(cells)):
@@ -206,22 +219,67 @@ def generate_voronoi_diagram(width, height, cells):
     return image
 
 
+def draw_image():
+    # make up nodes
+    width = 500
+    height = 500
+    cells = []
+    for i in range(10):
+        cells.append([random.randrange(width), random.randrange(height), "node%d" % i, i%6])
+        if DEBUG:
+            print(cells[-1])
+    # cells.append([300, 200])
+    # cells.append([200, 250])
+    # cells.append([300, 300])
 
-# make up nodes
-width = 500
-height = 500
-cells = []
-for i in range(10):
-    cells.append([random.randrange(width), random.randrange(height), "node%d" % i, i%6])
-    print(cells[-1])
-# cells.append([300, 200])
-# cells.append([200, 250])
-# cells.append([300, 300])
+    image = generate_voronoi_diagram(width, height, cells)
 
-image = generate_voronoi_diagram(width, height, cells)
+    for i in range(len(cells)):
+        ImageDraw.Draw(image).text((cells[i][0], cells[i][1]), cells[i][2], (0, 0, 0))
 
-for i in range(len(cells)):
-    ImageDraw.Draw(image).text((cells[i][0], cells[i][1]), cells[i][2], (0, 0, 0))
-image.save("a.png", "PNG")
-image.show()
+    path = "a.png"
+    image.save(path, "PNG")
+    image.show()
 
+    return path
+
+
+
+
+########################### MAIN SERVER PART #######################################
+
+PORT_NUMBER = 7008
+
+#This class will handles any incoming request from
+#the browser 
+class myHandler(BaseHTTPRequestHandler):
+    
+    #Handler for the GET requests
+    def do_GET(self):
+        try:
+            if self.path == "/random":
+                path = draw_image()
+                if path:
+                    f = open(path) 
+                    self.send_response(200)
+                    self.send_header('Content-type','image/png')
+                    self.end_headers()
+                    self.wfile.write(f.read())
+                    f.close()
+                return
+
+        except IOError:
+            self.send_error(404,'File Not Found: %s' % self.path)
+
+try:
+    #Create a web server and define the handler to manage the
+    #incoming request
+    server = HTTPServer(('', PORT_NUMBER), myHandler)
+    print 'Started httpserver on port ' , PORT_NUMBER
+    
+    #Wait forever for incoming htto requests
+    server.serve_forever()
+
+except KeyboardInterrupt:
+    print '^C received, shutting down the web server'
+    server.socket.close()
