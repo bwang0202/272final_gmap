@@ -8,19 +8,22 @@ from os import curdir, sep
 import os
 import json
 
-HEIGHT = 100
-WIDTH = 100
-RANDOM_POINTS = 10
-THRESHOLD = 5
+HEIGHT = 700
+WIDTH = 700
+RANDOM_POINTS = 100
+BOX_LEN = 5
+
+def build_cell(x, y, c):
+    return {"x": x, "y": y, "group": c}
 
 def get_x(node):
-    return node[0]
+    return node["x"]
 
 def get_y(node):
-    return node[1]
+    return node["y"]
 
 def get_c(node):
-    return node[2]
+    return node["group"]
 
 def voronoi(points, cidx):
     shape=(HEIGHT, WIDTH)
@@ -30,7 +33,10 @@ def voronoi(points, cidx):
     def hypot(X,Y):
         return (X-x)**2 + (Y-y)**2
 
-    for i,(x,y,c) in enumerate(points):
+    for i in range(len(points)):
+        x = get_x(points[i])
+        y = get_y(points[i])
+        c = get_c(points[i])
         paraboloid = numpy.fromfunction(hypot, shape)
         idx = -1
         if c in cidx:
@@ -42,6 +48,7 @@ def voronoi(points, cidx):
 
 def draw_map(colormap, eig_colors):
     shape = colormap.shape
+    path = "voronoi.png"
 
     palette_raw = [[255, 255, 255]]
     for i in range(len(eig_colors)):
@@ -51,21 +58,20 @@ def draw_map(colormap, eig_colors):
     palette = numpy.array(palette_raw)
 
     colormap = numpy.transpose(colormap)
-    print("transpose")
 
-    print(colormap)
 
     pixels = numpy.empty(colormap.shape+(4,),numpy.int8)
-    print(palette[colormap])
     pixels[:,:,0:3] = palette[colormap]
     pixels[:,:,3] = 0xFF
 
     image = Image.frombytes("RGBA", shape, pixels)
+    image.save(path)
     image.show()
-    image.save('voronoi.png')
+
+    return os.path.join(os.getcwd(), path)
 
 def gougu(c1, c2):
-    return (c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2
+    return (get_x(c1) - get_x(c2)) ** 2 + (get_y(c1) - get_y(c2)) ** 2
 
 def color_sum(adj_matrix, colors):
     result = 0
@@ -152,24 +158,80 @@ def gmap(cells):
     remaining = RANDOM_POINTS
     # outer boundary threshold
     threshold = (WIDTH + HEIGHT) / (4 + 2 * math.floor(math.sqrt(len(cells))))
+    original_cells_len = len(cells)
     # Add random points to cells
     while remaining > 0:
         cand_x = random.randrange(WIDTH)
         cand_y = random.randrange(HEIGHT)
         can_add = True
-        for i in range(len(cells)):
-            d = (cells[i][0] - cand_x) ** 2 + (cells[i][1] - cand_y) ** 2
+        for i in range(original_cells_len):
+            d = (get_x(cells[i]) - cand_x) ** 2 + (get_y(cells[i]) - cand_y) ** 2
             if (d < threshold ** 2):
                 can_add = False
                 break
         if can_add:
-            cells.append([cand_x, cand_y, random_cells_country])
+            cells.append(build_cell(cand_x, cand_y, random_cells_country))
             remaining -= 1
 
     # ADD random boxes points for non-random points
+    for i in range(original_cells_len):
+        center_x = get_x(cells[i])
+        center_y = get_y(cells[i])
+        country = get_c(cells[i])
 
-    draw_map(voronoi(cells, cidx), eig_colors)
+        radius = closest[i][0]
 
-if __name__ == '__main__':
-    cells = [[10,10,"a"],[30,10,"b"],[50,50,"c"],[10,80,"d"],[80,90,"a"]]
+        radius = math.floor(math.sqrt(radius) / 3)
+
+        for j in range(BOX_LEN):
+            cells.append(build_cell(center_x - radius, center_y - radius + radius * j / BOX_LEN - j%2, country))
+            cells.append(build_cell(center_x + radius, center_y - radius + radius * j / BOX_LEN - j%2, country))
+            cells.append(build_cell(center_x - radius + radius * j / BOX_LEN - j%2, center_y - radius, country))
+            cells.append(build_cell(center_x - radius + radius * j / BOX_LEN - j%2, center_y + radius, country))
+
+    return draw_map(voronoi(cells, cidx), eig_colors)
+
+# if __name__ == '__main__':
+#     data = """
+#     {"nodes":[{"id":"Myriel","group":1,"index":0,"x":322.1193537956844,"y":154.1539242364042,"vy":1.7801813434376934,"vx":-3.3041471826601576},
+#     {"id":"Napoleon","group":2,"index":1,"x":291.53541619621245,"y":190.269664315252,"vy":3.8538123261918105,"vx":-5.36041664239701}]}
+#     """
+#     gmap(json.loads(data)["nodes"])
+
+
+
+class myHandler(BaseHTTPRequestHandler):
+    
+    #Handler for the GET requests
+    def do_POST(self):
+        try:
+            content_len = int(self.headers.getheader('content-length', 0))
+            post_body = self.rfile.read(content_len)
+            test_data = json.loads(post_body)
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            path = gmap(test_data["nodes"])
+            self.wfile.write(path)
+            return
+
+        except IOError:
+            self.send_error(404,'File Not Found: %s' % self.path)
+
+try:
+    cells = []
+    for i in range(10):
+        cells.append(build_cell(random.randrange(WIDTH), random.randrange(HEIGHT), i%4))
     gmap(cells)
+    #Create a web server and define the handler to manage the
+    #incoming request
+    server = HTTPServer(('', PORT_NUMBER), myHandler)
+    print 'Started httpserver on port ' , PORT_NUMBER
+    
+    #Wait forever for incoming htto requests
+    server.serve_forever()
+
+except KeyboardInterrupt:
+    print '^C received, shutting down the web server'
+    server.socket.close()
