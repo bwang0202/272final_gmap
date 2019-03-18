@@ -220,7 +220,13 @@ def generate_voronoi_diagram(width, height, cells):
     return image
 
 
-def draw_image(cells):
+def draw_image(input_cells):
+    width = 700
+    height = 700
+
+    cells = []
+    for c in input_cells:
+        cells.append([c["x"], c["y"], c["id"], c["group"]])
 
     image = generate_voronoi_diagram(width, height, cells)
 
@@ -240,6 +246,12 @@ def draw_image(cells):
 
 PORT_NUMBER = 7008
 
+# data = """
+# {"nodes":[{"id":"Myriel","group":1,"index":0,"x":322.1193537956844,"y":154.1539242364042,"vy":1.7801813434376934,"vx":-3.3041471826601576},
+# {"id":"Napoleon","group":1,"index":1,"x":291.53541619621245,"y":190.269664315252,"vy":3.8538123261918105,"vx":-5.36041664239701}]}
+# """
+# draw_image(json.loads(data)["nodes"])
+
 #This class will handles any incoming request from
 #the browser 
 class myHandler(BaseHTTPRequestHandler):
@@ -254,7 +266,7 @@ class myHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type', 'text/html')
             self.end_headers()
-            path = draw_image(test_data)
+            path = draw_image(test_data["nodes"])
             with open(path) as f:
                 self.wfile.write(f.read())
             return
