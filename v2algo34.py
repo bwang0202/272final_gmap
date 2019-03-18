@@ -46,7 +46,7 @@ def voronoi(points, cidx):
 
     return colormap
 
-def draw_map(colormap, eig_colors):
+def draw_map(colormap, eig_colors, names):
     shape = colormap.shape
     path = "voronoi.png"
 
@@ -65,6 +65,8 @@ def draw_map(colormap, eig_colors):
     pixels[:,:,3] = 0xFF
 
     image = Image.frombytes("RGBA", shape, pixels)
+    for i in range(len(names)):
+        ImageDraw.Draw(image).text((names[i][0], names[i][1]), names[i][2], (0,0,0))
     image.save(path)
     image.show()
 
@@ -82,6 +84,10 @@ def color_sum(adj_matrix, colors):
     return result
 
 def gmap(cells):
+    # pass in name labels
+    names = []
+    for i in range(len(cells)):
+        names.append([get_x(cells[i]), get_y(cells[i]), cells[i]["id"]])
     # Calculate nodes closest neighbor
     closest = {}
     cidx = []
@@ -189,14 +195,14 @@ def gmap(cells):
             cells.append(build_cell(center_x - radius + radius * j / BOX_LEN - j%2, center_y - radius, country))
             cells.append(build_cell(center_x - radius + radius * j / BOX_LEN - j%2, center_y + radius, country))
 
-    return draw_map(voronoi(cells, cidx), eig_colors)
+    return draw_map(voronoi(cells, cidx), eig_colors, names)
 
-# if __name__ == '__main__':
-#     data = """
-#     {"nodes":[{"id":"Myriel","group":1,"index":0,"x":322.1193537956844,"y":154.1539242364042,"vy":1.7801813434376934,"vx":-3.3041471826601576},
-#     {"id":"Napoleon","group":2,"index":1,"x":291.53541619621245,"y":190.269664315252,"vy":3.8538123261918105,"vx":-5.36041664239701}]}
-#     """
-#     gmap(json.loads(data)["nodes"])
+if __name__ == '__main__':
+    data = """
+    {"nodes":[{"id":"Myriel","group":1,"index":0,"x":322.1193537956844,"y":154.1539242364042,"vy":1.7801813434376934,"vx":-3.3041471826601576},
+    {"id":"Napoleon","group":2,"index":1,"x":291.53541619621245,"y":190.269664315252,"vy":3.8538123261918105,"vx":-5.36041664239701}]}
+    """
+    gmap(json.loads(data)["nodes"])
 
 
 
@@ -220,10 +226,10 @@ class myHandler(BaseHTTPRequestHandler):
             self.send_error(404,'File Not Found: %s' % self.path)
 
 try:
-    cells = []
-    for i in range(10):
-        cells.append(build_cell(random.randrange(WIDTH), random.randrange(HEIGHT), i%4))
-    gmap(cells)
+    #cells = []
+    #for i in range(10):
+    #    cells.append(build_cell(random.randrange(WIDTH), random.randrange(HEIGHT), i%4))
+    #gmap(cells)
     #Create a web server and define the handler to manage the
     #incoming request
     server = HTTPServer(('', PORT_NUMBER), myHandler)
