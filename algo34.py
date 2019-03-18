@@ -5,6 +5,7 @@ import math
 import numpy
 from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 from os import curdir, sep
+import json
 
 RANDOM_POINTS = 100
 BOX_LEN = 5
@@ -219,18 +220,7 @@ def generate_voronoi_diagram(width, height, cells):
     return image
 
 
-def draw_image():
-    # make up nodes
-    width = 500
-    height = 500
-    cells = []
-    for i in range(10):
-        cells.append([random.randrange(width), random.randrange(height), "node%d" % i, i%6])
-        if DEBUG:
-            print(cells[-1])
-    # cells.append([300, 200])
-    # cells.append([200, 250])
-    # cells.append([300, 300])
+def draw_image(cells):
 
     image = generate_voronoi_diagram(width, height, cells)
 
@@ -255,18 +245,19 @@ PORT_NUMBER = 7008
 class myHandler(BaseHTTPRequestHandler):
     
     #Handler for the GET requests
-    def do_GET(self):
+    def do_POST(self):
         try:
-            if self.path == "/random":
-                path = draw_image()
-                if path:
-                    f = open(path) 
-                    self.send_response(200)
-                    self.send_header('Content-type','image/png')
-                    self.end_headers()
-                    self.wfile.write(f.read())
-                    f.close()
-                return
+            content_len = int(self.headers.getheader('content-length', 0))
+            post_body = self.rfile.read(content_len)
+            test_data = json.loads(post_body)
+            print(test_data)
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            path = draw_image(test_data)
+            with open(path) as f:
+                self.wfile.write(f.read())
+            return
 
         except IOError:
             self.send_error(404,'File Not Found: %s' % self.path)
